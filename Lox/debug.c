@@ -42,22 +42,3 @@ int disassembleInstruction(PChunk chunk, int offset){
 			return offset + 1;
 	}
 }
-static int simpleInstruction(const char* name, int offset){
-	printf("%s\n",name);
-	return offset + 1;
-}
-static int constantInstruction(const char* name, PChunk chunk, int offset){
-	uint8_t constantIdx = chunk->code[offset+1];
-	printf("%-16s %08d '",name,constantIdx);
-	printValue((chunk->constants).values[constantIdx]);
-	printf("'\n");
-	return offset + 2;
-}
-static int constantLongInstruction(const char* name, PChunk chunk, int offset){
-	int constantIdx = chunk->code[offset+1] + chunk->code[offset+2] << 8 \
-		+ chunk->code[offset+3] << 16;
-	printf("%-16s %08d '",name,constantIdx);
-	printValue((chunk->constants).values[constantIdx]);
-	printf("'\n");
-	return offset + 4;
-}
