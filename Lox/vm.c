@@ -24,8 +24,19 @@ Value pop(){
 	return vm.stack.values[(vm.stack.count--) - 1]; 
 }
 InterpretResult interpret(const char* source){
-	compile(source);
-	return INTERPRET_OK;
+	Chunk chunk;
+	initChunk(&chunk);
+	if (!compile(source, &chunk)){
+		freeChunk(&chunk);
+		return INTERPRET_COMPILE_ERROR;
+	}
+	initVM();
+	vm.chunk = &chunk;
+	vm.ip = vm.chunk->code;
+	InterpretResult result = run();
+	freeChunk(vm.chunk);
+	freeVM();
+	return result;
 }
 static InterpretResult run(){
   #define READ_BYTE() (*vm.ip++)
