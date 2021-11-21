@@ -59,14 +59,15 @@ PObj allocateObject(size_t size, ObjType type){
 	vm.objects = obj;
 	return obj;
 }
-
+PObjString allocateObjStr(int size){
+	PObj obj = allocateObject(sizeof(ObjString) + size, OBJ_STRING); 
+	return (PObjString)obj;
+}
 PObj copyString(const char* start, int len){
-	char* mem = ALLOCATE(char, len+1);
-	memcpy(mem,start,len);
-	mem[len] = '\0';
-	PObjString str = ALLOCATE_OBJ(ObjString,OBJ_STRING);
+	PObjString str = allocateObjStr(len+1);
 	str->length = len;
-	str->chars = mem;
+	memcpy(str->chars,start,len);
+	str->chars[len] = '\0';
 	return (PObj)str;
 }
 void printObject(Value value){
@@ -80,12 +81,10 @@ PObjString concat(Value a, Value b){
 	PObjString str_a = AS_STRING(a);
 	PObjString str_b = AS_STRING(b);
 	int total_len = str_a->length + str_b->length;
-	char* str = ALLOCATE(char, total_len +1);
-	memcpy(str,str_a->chars,str_a->length);
-	memcpy(str + str_a->length,str_b->chars, str_b->length);
-	str[total_len] = '\0';
-	PObjString result = ALLOCATE_OBJ(ObjString,OBJ_STRING);
+	PObjString result = allocateObjStr(total_len+1);
 	result->length = total_len;
-	result->chars = str;
+	memcpy(result->chars,str_a->chars,str_a->length);
+	memcpy(result->chars + str_a->length,str_b->chars, str_b->length);
+	result->chars[total_len] = '\0';
 	return result;
 }

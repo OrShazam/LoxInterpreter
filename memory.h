@@ -18,6 +18,7 @@
 #define ALLOCATE_OBJ(type, objectType) \
 	(type*)allocateObject(sizeof(type),objectType)
 #define FREE(type, pointer) reallocate(pointer, sizeof(type), 0)
+#define FREE_CONST(size, pointer) reallocate(pointer,size,0)
 
 void* reallocate(void*, size_t, size_t);
 void freeObjects();

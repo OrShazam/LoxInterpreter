@@ -1,5 +1,4 @@
 #include <stdlib.h>
-
 #include "memory.h"
 
 void* reallocate(void* pointer, size_t oldSize, size_t newSize){
@@ -16,8 +15,7 @@ static void freeObj(PObj obj){
 	switch (obj->type){
 		case OBJ_STRING: {
 			PObjString str = (PObjString)obj;
-			FREE_ARRAY(char,str->chars,str->length+1);
-			FREE(ObjString, obj);
+			FREE_CONST(sizeof(ObjString) + str->length, obj);
 			break;
 		}
 	}

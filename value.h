@@ -14,8 +14,8 @@ typedef struct _Obj{
 typedef struct {
 	Obj obj;
 	int length;
-	char* chars;
-} ObjString, *PObjString;
+	char chars[];
+} __attribute__((packed, aligned(1))) ObjString, *PObjString;
 
 typedef enum {
 	BOOL,
