@@ -2,11 +2,13 @@
 #define clox_vm_h
 #include "chunk.h"
 #include "value.h"
+#include "table.h"
 typedef struct {
 	PChunk chunk;
 	uint8_t* ip;
 	ValueArray stack;
 	PObj objects;
+	Table strings;
 } VM;
 typedef enum {
 	INTERPRET_OK,

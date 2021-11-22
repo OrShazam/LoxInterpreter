@@ -15,7 +15,7 @@ static void freeObj(PObj obj){
 	switch (obj->type){
 		case OBJ_STRING: {
 			PObjString str = (PObjString)obj;
-			FREE_CONST(sizeof(ObjString) + str->length, obj);
+			FREE_CONST(sizeof(ObjString) + str->length + 1, obj);
 			break;
 		}
 	}

@@ -26,11 +26,13 @@ void initVM(){
 	initValueArray(&vm.stack);
 	resetStack();
 	vm.objects = NULL;
+	initTable(&vm.strings);
 }
 
 void freeVM(){
 	freeValueArray(&vm.stack);
 	freeObjects();
+	freeTable(&vm.strings);
 }
 void push(Value value){
 	writeValueArray(&vm.stack, value);

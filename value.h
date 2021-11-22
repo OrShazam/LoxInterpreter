@@ -13,6 +13,7 @@ typedef struct _Obj{
 
 typedef struct {
 	Obj obj;
+	uint32_t hash;
 	int length;
 	char chars[];
 } __attribute__((packed, aligned(1))) ObjString, *PObjString;
@@ -31,7 +32,7 @@ typedef struct _Value{
 		double number;
 		PObj obj;
 	} as;
-} Value;
+} Value, *PValue;
 
 
 #define IS_BOOL(value) ((value).type == BOOL)
@@ -61,7 +62,7 @@ static inline bool isObjType(Value value, ObjType type) {
 PObj copyString(const char*, int);
 void printObject(Value);
 PObjString concat(Value, Value);
-
+uint32_t calcHash(const void*, int);
 
 typedef struct {
 	int capacity;
