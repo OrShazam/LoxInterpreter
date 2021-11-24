@@ -9,6 +9,7 @@ typedef struct {
 	ValueArray stack;
 	PObj objects;
 	Table strings;
+	Table globals;
 } VM;
 typedef enum {
 	INTERPRET_OK,

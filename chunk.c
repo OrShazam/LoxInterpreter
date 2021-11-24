@@ -38,9 +38,9 @@ int getLine(PChunk chunk, int offset){
 	}
 	return lineCounter;
 }
-void writeConstant(PChunk chunk, Value value,int line){
+int writeConstant(PChunk chunk, Value value,int line){
 	int constantIdx = addConstant(chunk,value);
-	if (constantIdx <= 255){
+	if (constantIdx < 256){
 		writeChunk(chunk, OP_CONSTANT,line);
 		writeChunk(chunk, constantIdx & 0xff,line);
 	}
@@ -50,4 +50,5 @@ void writeConstant(PChunk chunk, Value value,int line){
 		writeChunk(chunk, (constantIdx >> 8) & 0xff, line);
 		writeChunk(chunk, (constantIdx >> 16) & 0xff, line);
 	}
+	return constantIdx;
 }

@@ -14,6 +14,8 @@ static void repl(){
 			printf("\n");
 			break;
 		}
+		if (strcmp(line,"exit\n") == 0)
+			break;
 		interpret(line);
 	}
 }

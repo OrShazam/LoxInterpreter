@@ -20,9 +20,9 @@ typedef struct _Table {
 
 void initTable(PTable);
 void freeTable(PTable);
-bool tableSet(PTable,Value,Value);
-bool tableGet(PTable,Value,PValue);
-bool tableDelete(PTable, Value);
+bool tableSet(PTable,PValue,PValue);
+bool tableGet(PTable,PValue,PValue);
+bool tableDelete(PTable, PValue);
 void tableCopy(PTable src, PTable dst);
 
 #endif

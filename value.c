@@ -1,6 +1,7 @@
-#include <stdio.h>
+
 #include "memory.h"
 #include "value.h"
+#include "common.h"
 
 void initValueArray(PValueArray arr){
 	arr->capacity = 0;
@@ -20,6 +21,16 @@ void freeValueArray(PValueArray array) {
   FREE_ARRAY(Value, array->values, array->capacity);
   initValueArray(array);
 }
+Value getValueArrayIndex(PValueArray array, int index){
+	if (index < 0 || index > array->count)
+		return NIL_VAL();
+	return array->values[index];
+}
+void writeValueArrayIndex(PValueArray array, Value value, int index){
+	if (index < 0 || index > array->count)
+		return;
+	array->values[index] = value;
+}
 
 void printValue(Value value){
 	switch(value.type){
@@ -35,7 +46,9 @@ void printValue(Value value){
 			printObject(value);break;
 	}
 }
-bool valuesEqual(Value a, Value b) {
+bool valuesEqual(PValue _a, PValue _b) {
+  Value a = *_a;
+  Value b = *_b;
   if (a.type != b.type) return false;
   switch (a.type) {
     case BOOL:   return AS_BOOL(a) == AS_BOOL(b);
@@ -54,7 +67,7 @@ PObj allocateObject(size_t size, ObjType type){
 	return obj;
 }
 PObjString allocateObjStr(int size){
-	PObj obj = allocateObject(sizeof(ObjString) + size, OBJ_STRING); 
+	PObj obj = allocateObject(sizeof(ObjString) + size + 16, OBJ_STRING); 
 	return (PObjString)obj;
 }
 static PObjString tableFindString(PTable table,const char* start, int len, uint32_t hash){
@@ -67,27 +80,31 @@ static PObjString tableFindString(PTable table,const char* start, int len, uint3
 		entry = &table->entries[idx];
 		key = AS_STRING(entry->key);
 		if (key == NULL){
-			if (IS_NIL(entry->value))
+			if (IS_NIL(entry->value)){
 				return NULL;
+			}
 		}else if (key->length == len && 
-			key->hash == hash && memcmp(&(key->chars[0]), start,len) == 0)
+			key->hash == hash && memcmp(&(key->chars[0]), start,len) == 0){
 			return key;
+		}
 		idx = (idx + 1) % table->capacity;
 	}
 }
-PObj copyString(const char* start, int len){
+PObjString copyString(const char* start, int len){
 	uint32_t hash = calcHash((void*)start,len);
 	PObjString interned = tableFindString(&vm.strings,start,len,hash);
 	if (interned != NULL){
-		return (PObj)interned;
+		return interned;
 	}
 	PObjString str = allocateObjStr(len+1);
 	str->length = len;
 	memcpy(str->chars,start,len);
 	str->chars[len] = '\0';
 	str->hash = hash;
-	tableSet(&vm.strings,(OBJ_VAL((PObj)str)),NIL_VAL());
-	return (PObj)str;
+	Value strValue = OBJ_VAL(str);
+	Value nil = NIL_VAL();
+	tableSet(&vm.strings,&strValue,&nil);
+	return str;
 }
 void printObject(Value value){
 	switch (OBJ_TYPE(value)){
@@ -102,18 +119,19 @@ PObjString concat(Value a, Value b){
 	int total_len = str_a->length + str_b->length;
 	PObjString result = allocateObjStr(total_len+1);
 	result->length = total_len;
-	memcpy(result->chars,str_a->chars,str_a->length);
-	memcpy(result->chars + str_a->length,str_b->chars, str_b->length);
+	memcpy(&(result->chars[0]),&(str_a->chars[0]),str_a->length);
+	memcpy(&(result->chars[0]) + str_a->length,&(str_b->chars[0]), str_b->length);
 	result->chars[total_len] = '\0';
-	uint32_t hash = calcHash((void*)result->chars,result->length);
-	PObjString interned = tableFindString(&vm.strings,result->chars,result->length,hash);
+	uint32_t hash = calcHash((void*)&(result->chars[0]),result->length);
+	PObjString interned = tableFindString(&vm.strings,&(result->chars[0]),result->length,hash);
 	if (interned != NULL){
-		FREE_CONST(sizeof(ObjString) + result->length + 1,result);
+		free(result);
 		return interned;
 	}
-	PObj resultAsObj = (PObj)result;
-	Value value = OBJ_VAL(resultAsObj);
-	tableSet(&vm.strings,value,NIL_VAL());
+	result->hash = hash;
+	Value value = OBJ_VAL(result);
+	Value nil = NIL_VAL();
+	tableSet(&vm.strings,&value,&nil);
 	return result;
 }
 uint32_t calcHash(const void* key, int len){
@@ -124,5 +142,25 @@ uint32_t calcHash(const void* key, int len){
 		hash *= 16777619;
 	}
 	return hash;
-	
+}
+uint32_t calcHashGeneric(PValue key){
+	switch(key->type){
+		case BOOL: {
+			bool actual = AS_BOOL(*key);
+			return calcHash((void*)&actual,sizeof(bool));
+		}
+		case NUMBER: {
+			double actual = AS_NUMBER(*key);
+			return calcHash((void*)&actual,sizeof(double));
+		}
+		case OBJ: {
+			if (IS_STRING(*key)){
+				PObjString str = AS_STRING(*key);
+				return calcHash((void*)&str->chars[0],str->length);
+			}
+		}
+		default: {
+			return 0;
+		}
+	}
 }

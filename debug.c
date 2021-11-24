@@ -20,7 +20,11 @@ static int constantLongInstruction(const char* name, PChunk chunk, int offset){
 	printf("'\n");
 	return offset + 4;
 }
-
+static int byteInstruction(const char* name, PChunk chunk, int offset){
+	uint8_t slot = chunk->code[offset + 1];
+	printf("%-16s %4d\n", name, slot);
+	return offset + 2;
+}
 void disassembleChunk(PChunk chunk, const char* name){
 	printf("\t== %s ==\n",name);
 	for (int offset = 0; offset < chunk->count;){
@@ -37,6 +41,25 @@ int disassembleInstruction(PChunk chunk, int offset){
 			return constantInstruction("OP_CONSTANT",chunk,offset);
 		case OP_CONSTANT_LONG:
 			return constantLongInstruction("OP_CONSTANT_LONG",chunk,offset);
+		case OP_GLOBAL_SET:
+			return constantInstruction("OP_GLOBAL_SET",chunk,offset);
+		case OP_GLOBAL_SET_LONG:
+			return constantLongInstruction("OP_GLOBAL_SET_LONG",chunk,offset);
+		case OP_GLOBAL_GET:
+			return constantInstruction("OP_GLOBAL_GET",chunk,offset);
+		case OP_GLOBAL_GET_LONG:
+			return constantLongInstruction("OP_GLOBAL_GET_LONG",chunk,offset);
+		case OP_LOCAL_GET:
+			return byteInstruction("OP_LOCAL_GET", chunk, offset);
+		case OP_LOCAL_SET:
+			return byteInstruction("OP_LOCAL_SET", chunk, offset);
+		case OP_PRINT:
+			return simpleInstruction("OP_PRINT", offset);
+		case OP_POP:
+			return simpleInstruction("OP_POP",offset);
+		case OP_POPN: {
+			return byteInstruction("OP_POPN",chunk,offset);
+		}		
 		case OP_NIL:
 			return simpleInstruction("OP_NIL", offset);
 		case OP_TRUE:

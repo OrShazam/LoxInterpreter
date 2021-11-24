@@ -2,6 +2,9 @@
 #ifndef clox_compiler_h
 #define clox_compiler_h
 #include "chunk.h"
+#include "common.h"
+#include "scanner.h"
+#define LOCALS_MAX UINT8_MAX + 1
 bool compile(const char*, PChunk);
 typedef enum {
   PREC_NONE,
@@ -22,4 +25,13 @@ typedef struct {
 	ParseFn infix;
 	Precedence prec;
 } ParseRule, *PParseRule;
+typedef struct {
+	Token name;
+	int depth;
+} Local;
+typedef struct {
+	Local locals[LOCALS_MAX];
+	int localCount;
+	int scopeDepth;
+} Compiler, *PCompiler;
 #endif

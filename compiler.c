@@ -1,9 +1,5 @@
 
-#include <stdio.h>
-#include <stdlib.h>
-#include "common.h"
 #include "compiler.h"
-#include "scanner.h"
 
 typedef struct {
 	Token current;
@@ -13,6 +9,8 @@ typedef struct {
 } Parser;
 Parser parser;
 PChunk compilingChunk;
+bool canAssign;
+PCompiler current = NULL;
 static void initParser(){
 	parser.hadError = false;
 	parser.panicMode = false;
@@ -57,6 +55,15 @@ static void consume(TokenType type,const char* msg){
 	}
 	errorAtCurrent(msg);
 }
+static bool check(TokenType type){
+	return parser.current.type == type;
+}
+static bool match(TokenType type){
+	if(!check(type)) 
+		return false;
+	advance();
+	return true;
+}
 static void emitByte(uint8_t byte){
 	writeChunk(currentChunk(),byte,parser.previous.line);
 }
@@ -64,11 +71,8 @@ static void emitBytes(uint8_t byte1, uint8_t byte2) {
 	emitByte(byte1);
 	emitByte(byte2);
 }
-static void emitConstant(Value value){
-	writeConstant(currentChunk(), value,parser.previous.line);
-}
-static void emitReturn(){
-	emitByte(OP_RETURN);
+static int emitConstant(Value value){
+	return writeConstant(currentChunk(), value,parser.previous.line);
 }
 static void number(){
 	double value = strtod(parser.previous.start,NULL);
@@ -82,6 +86,8 @@ static void string(){
 static void expression();
 static ParseRule* getRule(TokenType type);
 static void parsePrecedence(Precedence precedence);
+static void statement();
+static void declaration();
 // for recursion
 static void grouping(){
 	expression();
@@ -145,6 +151,7 @@ static void parsePrecedence(Precedence prec){
 		error("Expect expression.");
 		return;
 	}
+	canAssign = prec <= PREC_ASSIGNMENT;
 	prefixRule();
 	while (prec <= getRule(parser.current.type)->prec) {
 		advance();
@@ -155,6 +162,68 @@ static void parsePrecedence(Precedence prec){
 static void expression(){
 	parsePrecedence(PREC_ASSIGNMENT);
 }
+static void printStatement(){
+	expression();
+	consume(TOKEN_SEMICOLON,"Expect ';' after value.");
+	emitByte(OP_PRINT);
+}
+static void emitGlobal(int global, bool set){
+	if (global < 256){
+		if (set)
+			emitBytes(OP_GLOBAL_SET,global & 0xff);
+		else 
+			emitBytes(OP_GLOBAL_GET,global & 0xff);
+	} else {
+		if (set){
+			emitByte(OP_GLOBAL_SET_LONG);
+			emitByte(OP_POP);
+		}
+		else 
+			emitByte(OP_GLOBAL_GET_LONG);
+		emitByte(global & 0xff);
+		emitByte((global >> 8) & 0xff);
+		emitByte((global >> 16) & 0xff);
+	}
+}
+static void emitLocal(int offset, bool set){
+	if (set)
+		emitBytes(OP_LOCAL_SET,offset & 0xff);
+	else 
+		emitBytes(OP_LOCAL_GET,offset & 0xff);
+}
+static bool idEqual(Token a, Token b){
+	return a.length == b.length && memcmp(&a.start,&b.start,a.length) == 0;
+}
+
+static int resolveLocal(PCompiler compiler,Token name){
+	for (int i = compiler->localCount-1; i >= 0; i--){
+		// decremental for loop for local shadowing
+		if (idEqual(name,compiler->locals[i].name))
+			return i;
+	}
+	return -1;
+}
+static void varRead(){
+	Token name = parser.previous;
+	int idx = emitConstant(OBJ_VAL(copyString(name.start,name.length)));
+	int stackOffset; bool set = false;
+	if (match(TOKEN_EQUAL)){
+		if (canAssign){
+			expression();
+			set = true;
+		} else {
+			error("Invalid assignment target.");
+		}
+	} 
+	stackOffset = resolveLocal(current,name);
+	if (stackOffset != -1){
+		emitLocal(stackOffset, set);
+		return;
+	}
+	
+	emitGlobal(idx,set);	
+}
+
 ParseRule rules[] = {
   [TOKEN_LEFT_PAREN]    = {grouping, NULL,   PREC_NONE},
   [TOKEN_RIGHT_PAREN]   = {NULL,     NULL,   PREC_NONE},
@@ -175,7 +244,7 @@ ParseRule rules[] = {
   [TOKEN_GREATER_EQUAL] = {NULL,     binary,   PREC_COMPARISON},
   [TOKEN_LESS]          = {NULL,     binary,   PREC_COMPARISON},
   [TOKEN_LESS_EQUAL]    = {NULL,     binary,   PREC_COMPARISON},
-  [TOKEN_IDENTIFIER]    = {NULL,     NULL,   PREC_NONE},
+  [TOKEN_IDENTIFIER]    = {varRead,     NULL,   PREC_NONE},
   [TOKEN_STRING]        = {string,     NULL,   PREC_NONE},
   [TOKEN_NUMBER]        = {number,   NULL,   PREC_NONE},
   [TOKEN_AND]           = {NULL,     NULL,   PREC_NONE},
@@ -200,13 +269,124 @@ ParseRule rules[] = {
 static PParseRule getRule(TokenType type){
 	return &rules[type];
 }
+static void endCompiler(){
+	emitByte(OP_RETURN);
+}
+static void expressionStatement(){
+	expression();
+	consume(TOKEN_SEMICOLON,"Expect ';' after expression.");
+	emitByte(OP_POP);
+}
+static void beginScope(){
+	current->scopeDepth++;
+}
+static void endScope(){
+	int prevCount = current->localCount;
+	while (current->localCount > 0 &&
+		current->locals[current->localCount-1].depth == current->scopeDepth){
+		current->localCount--;	
+	}
+	int delta = prevCount - current->localCount;
+	if (delta)
+		emitBytes(OP_POPN, delta & 0xff);
+	current->scopeDepth--;
+}
+static void block(){
+	while (!check(TOKEN_RIGHT_BRACE) && !check(TOKEN_EOF)){
+		declaration();
+	}
+	consume(TOKEN_RIGHT_BRACE,"Expect '}' after block.");
+}
+static void statement(){
+	if(match(TOKEN_PRINT)){
+		printStatement();
+	} else if (match(TOKEN_LEFT_BRACE)){
+		beginScope();
+		block();
+		endScope();
+	} else {
+		expressionStatement();
+	}
+}
+static void synchronize(){
+	parser.panicMode = false;
+	while (parser.current.type != TOKEN_EOF){
+		if (parser.previous.type == TOKEN_SEMICOLON)
+			return;
+		 switch (parser.current.type) {
+			case TOKEN_CLASS:
+			case TOKEN_FUN:
+			case TOKEN_VAR:
+			case TOKEN_FOR:
+			case TOKEN_IF:
+			case TOKEN_WHILE:
+			case TOKEN_PRINT:
+			case TOKEN_RETURN:
+				return;
+			default: ;
+		}
+		advance();
+	}
+}
+static void addLocal(Token name){
+	if (current->localCount == LOCALS_MAX){
+		error("Too many local variables, slow down!");
+		return;
+	}
+	if (resolveLocal(current, name) != -1)
+		error("Variables with the same name in the same scope.");
+	Local* local = &current->locals[current->localCount++];
+	local->name = name;
+	local->depth = current->scopeDepth;
+}
+static int parseVar(const char* errMsg){
+	consume(TOKEN_IDENTIFIER,errMsg);
+	Token name = parser.previous;
+	if (current->scopeDepth > 0){
+		return -1;
+	}
+	return emitConstant(OBJ_VAL(copyString(name.start,name.length)));
+}
+static void varDecl(){
+	// in case of locals, we just let the value for the variable to be pushed to the stack 
+	// we don't emit the identifier constant or the global get/set opcode
+	int global = parseVar("Expect variable name.");
+	if (match(TOKEN_EQUAL)){
+		expression();
+	} else {
+		emitByte(OP_NIL);
+	}
+	if (current->scopeDepth > 0)
+		return;
+	consume(TOKEN_SEMICOLON,"Expect ';' after variable declaration.");
+	bool set = true;
+	emitGlobal(global, set);
+	
+}
+static void declaration(){
+	if (match(TOKEN_VAR))
+		varDecl();
+	else 
+		statement();
+	if (parser.panicMode)
+		synchronize();
+}
+static void initCompiler(PCompiler compiler){
+	compiler->localCount = 0;
+	compiler->scopeDepth = 0;
+	current = compiler;
+	
+}
 bool compile(const char* source, PChunk chunk){
+	Compiler compiler;
+	initCompiler(&compiler);
 	compilingChunk = chunk;
 	initScanner(source);
 	initParser();
 	advance();
-	expression();
-	consume(TOKEN_EOF, "Expect end of expression");
-	emitReturn();
+	while (!match(TOKEN_EOF)){
+		declaration();
+	}
+	endCompiler();
 	return !parser.hadError;
 }

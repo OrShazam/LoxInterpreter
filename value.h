@@ -59,10 +59,11 @@ static inline bool isObjType(Value value, ObjType type) {
 #define AS_STRING(value)       ((PObjString)AS_OBJ(value))
 #define AS_CSTRING(value)      (((PObjString)AS_OBJ(value))->chars)
 
-PObj copyString(const char*, int);
+PObjString copyString(const char*, int);
 void printObject(Value);
 PObjString concat(Value, Value);
 uint32_t calcHash(const void*, int);
+uint32_t calcHashGeneric(PValue);
 
 typedef struct {
 	int capacity;
@@ -73,5 +74,7 @@ void initValueArray(PValueArray);
 void writeValueArray(PValueArray, Value);
 void freeValueArray(PValueArray);
 void printValue(Value);
-bool valuesEqual(Value, Value);
+bool valuesEqual(PValue, PValue);
+Value getValueArrayIndex(PValueArray, int);
+void writeValueArrayIndex(PValueArray, Value, int);
 #endif
